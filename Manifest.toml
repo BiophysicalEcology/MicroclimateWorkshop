@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.12.6"
+julia_version = "1.12.5"
 manifest_format = "2.0"
 project_hash = "7e01bbe8562b477099cfea0875a9f793d061d46a"
 
@@ -1584,8 +1584,8 @@ weakdeps = ["Makie"]
 
 [[deps.MicroclimateMapper]]
 deps = ["ArchGDAL", "CommonSolve", "ConstructionBase", "Dates", "FillArrays", "Flatten", "FluidProperties", "GLMakie", "GeoFormatTypes", "GeoInterface", "Geomorphometry", "Microclimate", "ModelParameters", "NCDatasets", "RasterDataSources", "Rasters", "Setfield", "SolarRadiation", "StaticArrays", "Statistics", "Unitful", "UnitfulMoles"]
-git-tree-sha1 = "321d94fc8e0516d6ded6ff116374a7bb6d7ed870"
-repo-rev = "main"
+git-tree-sha1 = "41389230213fbbeb05ddeb3e2731fcdcd301288e"
+repo-rev = "NCEP-6-hourly"
 repo-url = "https://github.com/BiophysicalEcology/MicroclimateMapper.jl"
 uuid = "e0e7f0f3-f3e4-4128-a017-ba7c8101b3e1"
 version = "0.1.0"

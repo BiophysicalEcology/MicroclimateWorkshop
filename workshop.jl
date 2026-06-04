@@ -5,7 +5,7 @@
 # Run interactively in VS Code:
 #   • Ctrl+Enter  — run current cell (between # %% markers)
 #   • Shift+Enter — run cell and move to next
-#   • Open the Julia REPL first: Ctrl+Shift+P → "Julia: Start REPL"
+#   • Open the Julia REPL first: Alt+J Alt+O"
 #
 # Make sure RASTERDATASOURCES_PATH is set before starting:
 #   ENV["RASTERDATASOURCES_PATH"] = joinpath(homedir(), "spatial_data")
@@ -13,8 +13,7 @@
 
 # %%
 # Activate the workshop environment (packages installed by setup.jl)
-ENV["RASTERDATASOURCES_PATH"] = joinpath(homedir(), "spatial_data")
-
+include("setup.jl")
 
 # =============================================================================
 # PART 1 — Physical units with Unitful.jl
@@ -57,14 +56,6 @@ height_m + height_ft        # result is in metres
 # number. Here it is a hard error — the code cannot run.
 
 # %%
-# Units survive arithmetic and know how to simplify:
-speed    = 100.0u"km" / 1.0u"hr"
-uconvert(u"m/s", speed)     # convert to m/s
-
-force    = 70.0u"kg" * 9.81u"m/s^2"
-uconvert(u"N", force)       # simplifies to Newtons
-
-# %%
 # Temperature units handle the offset correctly (°C ≠ K/shift — they differ
 # in both scale and origin for absolute values, but ΔT is still ΔT):
 T_celsius = 20.0u"°C"
@@ -72,8 +63,6 @@ uconvert(u"K", T_celsius)   # 293.15 K
 
 ΔT = 5.0u"K"                # a temperature *difference* — no offset needed
 T_celsius + ΔT              # 25 °C
-
-
 
 # =============================================================================
 # PART 2 — Multiple dispatch: FluidProperties.jl
@@ -147,42 +136,6 @@ vapour_pressure(lut, T)     # linear interpolation, no transcendental calls
 # Plot all three over the temperature range relevant to microclimate work.
 # The differences matter most at freezing (phase transition) and high temperatures.
 
-using CairoMakie
-
-temps_C = range(0.1, 45.0, 130)
-temps   = u"K".(temps_C .* u"°C")
-
-strip_Pa(eq) = [ustrip(u"Pa", vapour_pressure(eq, t)) for t in temps]
-vp_teten  = strip_Pa(Teten())
-vp_gg     = strip_Pa(GoffGratch())
-vp_huang  = strip_Pa(Huang())
-vp_custom = strip_Pa(AlwaysOnekPa())   # our custom equation — flat line at 1000 Pa
-
-fig = Figure(size = (900, 420))
-
-ax1 = Axis(fig[1, 1];
-    xlabel = "Temperature (°C)",
-    ylabel = "Saturation vapour pressure (Pa)",
-    title  = "Three equations + our custom one")
-lines!(ax1, temps_C, vp_teten;  label = "Teten (fast)",          color = :dodgerblue, linestyle = :dash)
-lines!(ax1, temps_C, vp_gg;     label = "Goff-Gratch (standard)", color = :black)
-lines!(ax1, temps_C, vp_huang;  label = "Huang (high accuracy)",  color = :crimson,   linestyle = :dot)
-lines!(ax1, temps_C, vp_custom; label = "AlwaysOnekPa (silly)",   color = :green,     linestyle = :dashdot)
-axislegend(ax1; position = :lt)
-
-# Relative error vs Huang (treated as reference):
-ax2 = Axis(fig[1, 2];
-    xlabel = "Temperature (°C)",
-    ylabel = "Relative error vs Huang (%)",
-    title  = "Accuracy comparison")
-lines!(ax2, temps_C, 100 .* (vp_teten .- vp_huang) ./ vp_huang; label = "Teten",      color = :dodgerblue, linestyle = :dash)
-lines!(ax2, temps_C, 100 .* (vp_gg    .- vp_huang) ./ vp_huang; label = "Goff-Gratch", color = :black)
-hlines!(ax2, [0]; color = :gray, linestyle = :dot)
-axislegend(ax2; position = :lt)
-
-fig
-
-
 # =============================================================================
 # PART 3 — Solar radiation: SolarRadiation.jl
 # =============================================================================
@@ -205,7 +158,7 @@ longitude = 3.581u"°"
 elevation = 1567.0u"m"
 
 # Atmospheric pressure at 1567 m (barometric formula)
-atmospheric_pressure = 101325.0 * exp(-1567.0 / 8500.0) * u"Pa" # TODO add atmopsheric_pressure function
+atmospheric_pressure = Microclimate.atmospheric_pressure(elevation)
 
 flat_terrain = SolarTerrain(;
     elevation,
@@ -249,6 +202,8 @@ n_d = length(days)
 flat_global  = reshape(ustrip.(u"W/m^2", flat_out.global_horizontal),  n_h, n_d)
 south_global = reshape(ustrip.(u"W/m^2", south_out.global_terrain),    n_h, n_d)
 
+using CairoMakie
+
 fig = Figure(size = (1000, 450))
 colors = [:royalblue, :gold, :darkorange, :steelblue4]
 
@@ -275,8 +230,6 @@ fig
 noon_flat  = flat_global[13, 4]   # hour 12, day index 4
 noon_south = south_global[13, 4]
 println("Winter noon: flat $(round(Int, noon_flat)) W/m² vs south slope $(round(Int, noon_south)) W/m²")
-
-
 
 # =============================================================================
 # PART 4 — Rasters and spatial data: Rasters.jl + RasterDataSources.jl
@@ -325,7 +278,7 @@ println("Cropped size: ", size(summit_box))
 
 # %%
 # Plot the terrain — CairoMakie knows how to display Rasters directly:
-fig, ax, plt = heatmap(srtm;
+fig, ax, plt = heatmap(summit_box;
     colormap = :terrain,
     axis = (aspect = DataAspect(), title = "SRTM elevation — Mont Aigoual region (m)"))
 Colorbar(fig[1, 2], plt)
@@ -335,8 +288,6 @@ scatter!(ax, [3.520, 3.582, 3.581], [44.143, 44.115, 44.122];
     marker = :circle, color = :white, strokecolor = :black, strokewidth = 1,
     markersize = 10)
 fig
-
-
 
 # %%
 # Terrain analysis with Geomorphometry.jl
@@ -404,26 +355,21 @@ println("Horizon angle array size: ", size(horizons), "  (rows × cols × direct
 println("Shape: $(size(dem,1)) pixels × $(size(dem,2)) pixels × 32 azimuths")
 
 # %%
-# Extract horizon angles at the summit pixel and plot as a polar bar chart
-# to show which directions have terrain blocking the sky.
+# Horizon angle maps in the four cardinal directions.
+# Direction index: N=1 (0°), E=9 (90°), S=17 (180°), W=25 (270°)
+dir_indices = (1, 9, 17, 25)
+dir_labels  = ("North (0°)", "East (90°)", "South (180°)", "West (270°)")
 
-# Find the row/col of the summit within summit_box
-x_coords_box = collect(dims(summit_box, X))
-y_coords_box = collect(dims(summit_box, Y))
-col_summit = argmin(abs.(x_coords_box .- 3.581))
-row_summit = argmin(abs.(y_coords_box .- 44.122))
-
-summit_horizons = horizons[row_summit, col_summit, :]   # 32 angles in degrees
-azimuths_deg    = range(0, 360, length = 33)[1:end-1]   # 0°, 11.25°, ... 348.75°
-azimuths_rad    = deg2rad.(azimuths_deg)
-
-fig = Figure(size = (520, 520))
-ax  = PolarAxis(fig[1, 1];
-    title  = "Horizon angles at Mont Aigoual summit",
-    rlimits = (0, maximum(summit_horizons) * 1.15))
-barplot!(ax, azimuths_rad, summit_horizons;
-    color = summit_horizons, colormap = :viridis,
-    width = 2π / 32)
+clim = (0, maximum(horizons))
+fig = Figure(size = (900, 820))
+last_p = nothing
+for (k, (idx, lbl)) in enumerate(zip(dir_indices, dir_labels))
+    row, col = fldmod1(k, 2)
+    ax = Axis(fig[row, col]; aspect = DataAspect(), title = "Horizon angle — $lbl")
+    slice = Raster(horizons[:, :, idx], dims(dem, (X, Y)))
+    last_p = heatmap!(ax, slice; colormap = :hot, colorrange = clim)
+end
+Colorbar(fig[1:2, 3], last_p; label = "°")
 fig
 
 # %%
@@ -674,13 +620,34 @@ for (k, (name, series)) in enumerate(panels)
     push!(group_titles, name)
 end
 
-Legend(fig[1, 2], group_handles, [labels for _ in group_titles], group_titles;
-    framevisible = false, labelsize = 10, titlesize = 11,
-    titlehalign = :left, rowgap = 2)
+leg_layout = GridLayout(fig[1, 2])
+for (k, (title, handles)) in enumerate(zip(group_titles, group_handles))
+    Legend(leg_layout[k, 1], handles, labels;
+        title, framevisible = false, labelsize = 10, titlesize = 11,
+        titlehalign = :left, rowgap = 2)
+end
 colsize!(fig.layout, 2, Auto(0.22))
 fig
 
+# %%
+# Annual soil temperature profiles at the summit — all depths, all hours
+# Shallow layers track air temperature closely; deep layers are buffered and lagged.
+soil_depth_indices = [1, 3, 4, 7, 8, 9]   # 0, 5, 10, 30, 50, 100 cm
+depth_labels       = ["0 cm", "5 cm", "10 cm", "30 cm", "50 cm", "100 cm"]
 
+fig = Figure(size = (1000, 420))
+ax  = Axis(fig[1, 1];
+    title  = "Annual soil temperatures — summit 2010",
+    xlabel = "Date", ylabel = "Soil temperature (°C)")
+
+depth_colors = cgrad(:Spectral, length(soil_depth_indices); categorical = true, rev = true)
+for (j, (didx, dlbl)) in enumerate(zip(soil_depth_indices, depth_labels))
+    ts = collect(result.soil_temperature[point=3, depth=didx])
+    lines!(ax, ti, ts; label = dlbl, color = depth_colors[j], linewidth = 1.0)
+end
+Legend(fig[1, 2], ax; framevisible = false, title = "Depth")
+colsize!(fig.layout, 2, Auto(0.15))
+fig
 
 # =============================================================================
 # PART 7 — Raster solar radiation over Mont Aigoual
@@ -707,7 +674,7 @@ println("Part 7 (raster solar radiation) — coming soon.")
 #
 # Area: ~0.054° square centred on the summit — 66 × 66 SRTM pixels at 90 m.
 # Weather: TerraClimate monthly climatology (no daily weather download needed).
-# Snow: disabled — TerraClimate does not have sub-daily precipitation detail.
+# Snow: disabled — for a faster calculation in the demo.
 # Timing: ~80 s on a laptop — 66 × 66 pixels × 12 months × 24 hours =
 #         1.25 million individual microclimate solves.
 #
@@ -741,7 +708,7 @@ raster_model = MicroMapModel(;
 raster_problem = MicroRasterProblem(;
     model        = raster_model,
     area,
-    dates        = Date(2000, 1, 1):Day(1):Date(2000, 12, 31),
+    dates        = Date(2010, 1, 1):Day(1):Date(2010, 12, 31),
     template     = SRTM,           # native SRTM resolution as the pixel grid
     soil_profile = example_soil_profile(depths),
 )
@@ -753,7 +720,7 @@ raster_problem = MicroRasterProblem(;
 raster_result = strip_to_canonical(raster_output)
 
 # Save — the file can be opened directly in QGIS, R (terra), or Python (xarray)
-outpath = joinpath(@__DIR__, "output", "aigoual_2000.nc")
+outpath = joinpath(@__DIR__, "output", "aigoual_2010.nc")
 write(outpath, raster_result; force = true)
 println("Saved to ", outpath)
 
@@ -768,47 +735,49 @@ println("Saved to ", outpath)
 #   raster_result.soil_temperature[X(Near(3.581)), Y(Near(44.122))]
 #   raster_result.air_temperature[X(Near(3.520)), Y(Near(44.143))]
 
-# Surface soil temperature at midday — averaged over all matching time steps
-# (for monthly climatology there is typically just one midday per month)
-jan_soil = raster_result.soil_temperature[Ti=Where(t -> month(t) == 1 && hour(t) == 12), depth=1]
-jul_soil = raster_result.soil_temperature[Ti=Where(t -> month(t) == 7 && hour(t) == 12), depth=1]
-jan_surf = mean(jan_soil; dims = Ti)[Ti=1]
-jul_surf = mean(jul_soil; dims = Ti)[Ti=1]
+# Soil surface temperature in July at four times of day.
+# The diurnal cycle of aspect-driven heating is most visible in summer.
+times_of_day = [6, 9, 12, 15]
+time_labels  = ["6 am", "9 am", "Noon", "3 pm"]
+
+jul_surfs = [
+    let s = raster_result.soil_temperature[Ti=Where(t -> month(t) == 7 && hour(t) == h), depth=1]
+        mean(s; dims = Ti)[Ti=1]
+    end
+    for h in times_of_day
+]
 
 # %%
-# Map: midday soil surface temperature in January vs July
-# The N/S ridgeline of the massif should be clearly visible — south-facing
-# slopes are warmer in January, cooler in July (less radiation asymmetry).
+# Map: July soil surface temperature at four times of day.
+# At 6 am south-facing slopes are barely warmer than north; by noon the contrast
+# is at its peak; by 3 pm the west-facing slopes take over.
 
-shared_limits = (
-    colorrange = (
-        min(minimum(jan_surf), minimum(jul_surf)),
-        max(maximum(jan_surf), maximum(jul_surf)),
-    ),
-    colormap = :RdBu_r,
-    interpolate = false,
-)
-
-fig = Figure(size = (1000, 460))
-ax1 = Axis(fig[1, 1]; aspect = DataAspect(),
-    title = "Midday soil surface temperature — January 2000 (°C)",
-    xlabel = "Longitude", ylabel = "Latitude")
-ax2 = Axis(fig[1, 2]; aspect = DataAspect(),
-    title = "Midday soil surface temperature — July 2000 (°C)",
-    xlabel = "Longitude")
-
-p1 = heatmap!(ax1, jan_surf; shared_limits...)
-p2 = heatmap!(ax2, jul_surf; shared_limits...)
-Colorbar(fig[1, 3], p1; label = "°C")
+clim = (minimum(minimum.(jul_surfs)), maximum(maximum.(jul_surfs)))
+fig = Figure(size = (1000, 900))
+for (k, (surf, lbl)) in enumerate(zip(jul_surfs, time_labels))
+    row, col = fldmod1(k, 2)
+    ax = Axis(fig[row, col]; aspect = DataAspect(),
+        title = "July soil surface — $lbl",
+        xlabel = "Longitude", ylabel = col == 1 ? "Latitude" : "")
+    last_p = heatmap!(ax, surf; colormap = Reverse(:RdBu), colorrange = clim, interpolate = false)
+    if col == 2
+        Colorbar(fig[row, 3], last_p; label = "°C")
+    end
+end
 fig
 
 # %%
 # Annual range: how much does the soil surface warm up between winter and summer?
+# Use noon values for a fair like-for-like comparison.
+jan_surf = let s = raster_result.soil_temperature[Ti=Where(t -> month(t) == 1 && hour(t) == 12), depth=1]
+    mean(s; dims = Ti)[Ti=1]
+end
+jul_surf = jul_surfs[3]   # noon panel from the four-panel plot above
 annual_range = jul_surf .- jan_surf
 
 fig2 = Figure(size = (520, 460))
 ax = Axis(fig2[1, 1]; aspect = DataAspect(),
-    title  = "Midday soil surface annual range\nJuly − January 2000 (°C)",
+    title  = "Soil surface annual range (noon)\nJuly − January 2010 (°C)",
     xlabel = "Longitude", ylabel = "Latitude")
 p = heatmap!(ax, annual_range; colormap = :plasma, interpolate = false)
 Colorbar(fig2[1, 2], p; label = "°C")
@@ -817,12 +786,12 @@ fig2
 # %%
 # Compare the summit pixel time series against the valley pixel —
 # same DimensionalData indexing we used for the SRTM raster in Part 4.
-summit_Tsoil = raster_result.soil_temperature[X=Near(3.581)), Y=Near(44.122)), depth=1]
-valley_Tsoil = raster_result.soil_temperature[X=Near(3.520)), Y=Near(44.143)), depth=1]
+summit_Tsoil = raster_result.soil_temperature[X=Near(3.581), Y=Near(44.122), depth=1]
+valley_Tsoil = raster_result.soil_temperature[X=Near(3.520), Y=Near(44.143), depth=1]
 
 fig3 = Figure(size = (900, 380))
 ax = Axis(fig3[1, 1];
-    title  = "Surface soil temperature — summit vs valley (2000 climatology)",
+    title  = "Surface soil temperature — summit vs valley (2010 climatology)",
     xlabel = "Time step (month × hour)",
     ylabel = "Soil surface temperature (°C)")
 lines!(ax, collect(summit_Tsoil); label = "Summit (1567 m)", color = :royalblue)

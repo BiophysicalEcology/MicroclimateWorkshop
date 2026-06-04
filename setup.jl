@@ -63,7 +63,7 @@ warmup_problem = MicroVectorProblem(;
 # (~100 MB total) if not already cached.
 elapsed = @elapsed output = solve(warmup_problem)
 println("✓ Solver warm-up complete in $(round(elapsed; digits=1)) s.")
-println("  (Future solves at this site will take ~14 s.)")
+println("  (Future solves at this site will take ~12 s.)")
 
 # ---------------------------------------------------------------------------
 # Step 6: Quick smoke test
