@@ -653,14 +653,92 @@ fig
 # PART 7 — Raster solar radiation over Mont Aigoual
 # =============================================================================
 #
-# [TO BE ADDED — code will go here once raster solar radiation output is
-#  wired into MicroclimateMapper. The demo will run SolarRadiation.jl at
-#  every SRTM pixel, showing how direct radiation varies with slope and
-#  aspect across the massif — the primary driver of the microclimate
-#  differences we saw in Part 6.]
+# SolarRasterProblem runs SolarRadiation.jl at every SRTM pixel.  It reuses
+# the same compute_terrain_grids infrastructure as the microclimate solver, so
+# slope, aspect, horizon angles and atmospheric pressure are all automatically
+# computed at native DEM resolution.  The result is a RasterStack with dims
+# (X, Y, Ti) — one layer per output variable, one Ti step per (day, hour) pair.
 
 # %%
-println("Part 7 (raster solar radiation) — coming soon.")
+# Summer solstice (day 172), hours 6 AM–6 PM at 1-hour resolution.
+solar_prob = SolarRasterProblem(;
+    dem_source       = SRTM,
+    extent           = (3.52, 3.65, 44.08, 44.18),   # same box as Part 4/6
+    days             = [172.0],                        # near summer solstice
+    hours            = 6.0:1.0:18.0,
+    albedo           = 0.15,
+    n_horizon_angles = 32,
+)
+
+# This downloads SRTM tiles for the region (cached after first run),
+# computes terrain grids, then loops over every pixel calling solar_radiation!.
+@time solar_result = solve(solar_prob)
+
+# solar_result is a RasterStack with layers:
+#   global_terrain     — total irradiance on the actual slope surface (W/m²)
+#   direct_horizontal  — direct beam on horizontal (W/m²)
+#   diffuse_horizontal — diffuse on horizontal (W/m²)
+#   global_horizontal  — total on horizontal (W/m²)
+# Each layer has dims (X, Y, Ti) where Ti = day + hour/24 (fractional doy).
+
+# %%
+# Compare solar noon irradiance across all four sites from Part 6.
+# South-facing slopes get more direct radiation than the flat valley floor.
+sites      = [(3.57, 44.09, "Valley"), (3.57, 44.12, "Slope"), (3.581, 44.122, "Summit")]
+noon_idx   = findfirst(==(12.0), collect(6.0:1.0:18.0))   # index of hour 12
+noon_hours = collect(6.0:1.0:18.0)
+
+fig2 = Figure(size = (800, 450))
+ax2  = Axis(fig2[1, 1];
+    title  = "Diurnal solar irradiance on terrain surface — summer solstice",
+    xlabel = "Hour of day",
+    ylabel = "Global irradiance (W/m²)",
+)
+for (lon, lat, label) in sites
+    ts = [ustrip(u"W/m^2", solar_result.global_terrain[X(Near(lon)), Y(Near(lat)), Ti(t)])
+          for t in 1:length(noon_hours)]
+    lines!(ax2, noon_hours, ts; label)
+end
+axislegend(ax2; position = :lt)
+fig2
+
+# %%
+# Plot global irradiance on the terrain surface at 7am (Ti index 2 = 7:00).
+fig = Figure(size = (900, 700))
+ax  = Axis(fig[1, 1];
+    title  = "Global solar irradiance at solar noon — summer solstice (W/m²)",
+    xlabel = "Longitude (°)",
+    ylabel = "Latitude (°)",
+    aspect = DataAspect(),
+)
+hm = heatmap!(ax, solar_result.global_terrain[Ti(2)]; colormap = :inferno)
+scatter!(ax, [summit[1]], [summit[2]]; color = :cyan, markersize = 12,
+         label = "Mont Aigoual")
+axislegend(ax; position = :lt)
+Colorbar(fig[1, 2], hm; label = "W/m²")
+fig
+
+# %%
+# Daily total radiation (W·h/m²) — sum across all simulated hours × Δt (1 h).
+# With evenly spaced 1-hour steps this is the rectangle-rule integral; accurate
+# enough for a workshop demo with 13 hourly snapshots.
+gt          = solar_result.global_terrain   # (X, Y, Ti)
+Δh          = step(6.0:1.0:18.0)           # 1 h between timesteps
+daily_total = dropdims(sum(gt; dims = Ti); dims = Ti) .* (Δh * u"hr")
+
+fig3 = Figure(size = (900, 700))
+ax3  = Axis(fig3[1, 1];
+    title  = "Daily total solar radiation on terrain — summer solstice (W·h/m²)",
+    xlabel = "Longitude (°)",
+    ylabel = "Latitude (°)",
+    aspect = DataAspect(),
+)
+hm3 = heatmap!(ax3, daily_total; colormap = :inferno)
+scatter!(ax3, [summit[1]], [summit[2]]; color = :cyan, markersize = 12,
+         label = "Mont Aigoual")
+axislegend(ax3; position = :lt)
+Colorbar(fig3[1, 2], hm3; label = "W·h/m²")
+fig3
 
 
 
