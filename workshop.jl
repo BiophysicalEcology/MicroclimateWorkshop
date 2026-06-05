@@ -199,8 +199,8 @@ n_h = length(hours)
 n_d = length(days)
 
 # Reshape output: rows = hours, cols = days
-flat_global  = reshape(ustrip.(u"W/m^2", flat_out.global_horizontal),  n_h, n_d)
-south_global = reshape(ustrip.(u"W/m^2", south_out.global_terrain),    n_h, n_d)
+flat_global  = reshape(flat_out.global_horizontal,  n_h, n_d)
+south_global = reshape(south_out.global_terrain,    n_h, n_d)
 
 using CairoMakie
 
@@ -208,9 +208,9 @@ fig = Figure(size = (1000, 450))
 colors = [:royalblue, :gold, :darkorange, :steelblue4]
 
 ax1 = Axis(fig[1, 1]; title = "Flat terrain",
-           xlabel = "Hour of day", ylabel = "Global radiation (W/m²)")
+           xlabel = "Hour of day", ylabel = "Global radiation")
 ax2 = Axis(fig[1, 2]; title = "South-facing slope (20°)",
-           xlabel = "Hour of day", ylabel = "Global radiation (W/m²)")
+           xlabel = "Hour of day", ylabel = "Global radiation")
 
 for (i, name) in enumerate(day_names)
     lines!(ax1, collect(hours), flat_global[:, i];  label = name, color = colors[i])
@@ -229,7 +229,7 @@ fig
 # Difference at solar noon, winter solstice:
 noon_flat  = flat_global[13, 4]   # hour 12, day index 4
 noon_south = south_global[13, 4]
-println("Winter noon: flat $(round(Int, noon_flat)) W/m² vs south slope $(round(Int, noon_south)) W/m²")
+println("Winter noon: flat $(round(Int, ustrip(noon_flat))) W/m² vs south slope $(round(Int, ustrip(noon_south))) W/m²")
 
 # =============================================================================
 # PART 4 — Rasters and spatial data: Rasters.jl + RasterDataSources.jl
@@ -348,6 +348,8 @@ fig
 #
 # The output is a plain 3D Array: (rows, cols, n_directions).
 # We use 32 directions (matching what MicroclimateMapper uses internally).
+# It's best to use power-of-two numbers of directions for performance of
+# the algorithm.
 
 horizons = horizon_angle(dem; directions = 32)   # degrees above horizontal
 
@@ -407,26 +409,27 @@ fig
 #   Raster(SRTM; extent, ...)            # 90-m global DEM
 #   RasterStack(CHELSA{BioClim}; ...)    # 1-km bioclimate
 #   RasterStack(TerraClimate{Historical}; ...) # monthly climate timeseries
-#   RasterStack(NCEP{SurfaceGauss}; ...) # daily reanalysis
+#   RasterStack(NCEP{SurfaceGauss}; ...) # NCEP radiation/precip sub-stack (year = 2010)
 #
 # In R you would call a different function or package for each of these,
 # with different argument conventions, file formats, and projection handling.
 # Here it is a uniform interface — swap the type, get different data.
 
 # %%
-# Time dimension example — load a multi-date stack:
-# (NCEP data is downloaded by the solver; here we show the interface)
+# Time dimension example — load an NCEP radiation stack for a full year:
+# In Parts 6 and 8 the solver uses NCEP{SurfaceGauss} directly. Here we show
+# the raw RasterDataSources interface for the same radiation sub-stack.
 #
-# stack = RasterStack(NCEP{SurfaceGauss}; extent = area, year = 2010)
-# stack  # → named layers: :air, :rhum, :uwnd, :vwnd, :prate ...
+# stack = RasterStack(NCEP{SurfaceGauss}; extent = area, date = Date(2010))
+# stack  # → named layers: :dswrf, :dlwrf, :prate  (one value per day)
 #
-# Access by layer name AND time:
-# stack[:air][Ti(Date(2010, 1, 15))]          # temperature on Jan 15
-# stack[:air][X(Near(3.58)), Y(Near(44.12)), Ti(1)]  # single pixel, first day
+# Access by layer name AND time — Ti holds DateTime values (not Date):
+# stack[:dswrf][Ti(Near(DateTime(2010, 1, 15, 12)))]             # radiation near noon Jan 15
+# stack[:dswrf][X(Near(3.58)), Y(Near(44.12)), Ti(1)]            # single pixel, first timestep
 #
 # In R (terra or stars):
-# terra::subset(stack, "air")[ , , 15]        # layer, then numeric time index
-# stars::st_get_dimension_values(stack, "time")[15]  # you have to look it up
+# terra::subset(stack, "dswrf")[ , , 1]       # layer, then numeric time index
+# stars::st_get_dimension_values(stack, "time")[1]   # you have to look it up
 
 # %%
 # DimensionalData.jl — the core of Rasters.jl
@@ -509,10 +512,11 @@ temps_da[depth=Near(5u"cm")] # nearest depth to 5 cm, all hours
 #
 # We simulate the full microclimate at three sites on the Mont Aigoual massif
 # for the winter of 2010 — a year with substantial snowpack at the summit.
-# All three sites fall within the same NCEP grid cell (~2.5° resolution), so
-# they receive the same large-scale weather forcing. The differences in
-# snowpack and soil temperature come entirely from elevation, aspect, and
-# terrain-driven radiation corrections — exactly what the model is for.
+# All three sites fall within the same NCEP grid cell (~2.5° spatial
+# resolution, daily temporal resolution), so they receive the same
+# large-scale weather forcing. The differences in snowpack and soil
+# temperature come entirely from elevation, aspect, and terrain-driven
+# radiation corrections — exactly what the model is for.
 
 # %%
 using Microclimate, MicroclimateMapper
