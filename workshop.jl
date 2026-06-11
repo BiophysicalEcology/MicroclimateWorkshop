@@ -382,13 +382,14 @@ fig
 
 svf = sky_view_factor(dem; directions = 32)
 
-fig = Figure(size = (520, 460))
-ax  = Axis(fig[1, 1]; aspect = DataAspect(),
-    title  = "Sky view factor — Mont Aigoual\n(1 = full sky, 0 = fully enclosed)")
-p   = heatmap!(ax, svf; colormap = :Blues_9, colorrange = (0.8, 1.0))
-Colorbar(fig[1, 2], p)
-scatter!(ax, [3.581], [44.122]; marker = :star5, color = :white,
-         strokecolor = :black, strokewidth = 1, markersize = 12)
+fig = Figure(size = (900, 820))
+fig, ax, plt = heatmap(Raster(svf, dims(dem, (X, Y)));
+    colormap = :Blues_9, colorrange = (0.8, 1.0),
+    axis = (aspect = DataAspect(), title = "Sky view factor — Mont Aigoual\n(1 = full sky, 0 = fully enclosed)"))
+# Mark the three workshop sites
+CairoMakie.scatter!(ax, [3.520, 3.582, 3.581], [44.143, 44.115, 44.122];
+    marker = :circle, color = :white, strokecolor = :black, strokewidth = 1,
+    markersize = 10)
 fig
 
 # %%
