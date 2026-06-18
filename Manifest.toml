@@ -1584,7 +1584,7 @@ weakdeps = ["Makie"]
 
 [[deps.MicroclimateMapper]]
 deps = ["ArchGDAL", "CommonSolve", "ConstructionBase", "Dates", "FillArrays", "Flatten", "FluidProperties", "GLMakie", "GeoFormatTypes", "GeoInterface", "Geomorphometry", "Microclimate", "ModelParameters", "NCDatasets", "RasterDataSources", "Rasters", "Setfield", "SolarRadiation", "StaticArrays", "Statistics", "Unitful", "UnitfulMoles"]
-git-tree-sha1 = "770e32ec89b8d48966434ae3b41ce65107c4c176"
+git-tree-sha1 = "18e0158967dd0ab63457d5b8c7675839054c00ca"
 repo-rev = "solar-radiation-raster"
 repo-url = "https://github.com/BiophysicalEcology/MicroclimateMapper.jl"
 uuid = "e0e7f0f3-f3e4-4128-a017-ba7c8101b3e1"
@@ -2038,8 +2038,8 @@ version = "0.3.2"
 
 [[deps.RasterDataSources]]
 deps = ["ASCIIrasters", "Dates", "DelimitedFiles", "Extents", "HTTP", "JSON", "URIs", "ZipFile"]
-git-tree-sha1 = "1c31a081ad18f297dc9b2bbb6367f1e9811d4ab7"
-repo-rev = "master"
+git-tree-sha1 = "4a66d533288cff6341baf009683e9abb259031bc"
+repo-rev = "better_ncep"
 repo-url = "https://github.com/EcoJulia/RasterDataSources.jl"
 uuid = "3cb90ccd-e1b6-4867-9617-4276c8b2ca36"
 version = "0.7.3"

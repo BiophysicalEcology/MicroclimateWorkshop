@@ -410,7 +410,8 @@ fig
 #   Raster(SRTM; extent, ...)            # 90-m global DEM
 #   RasterStack(CHELSA{BioClim}; ...)    # 1-km bioclimate
 #   RasterStack(TerraClimate{Historical}; ...) # monthly climate timeseries
-#   RasterStack(NCEP{SurfaceGauss}; ...) # NCEP radiation/precip sub-stack (year = 2010)
+#   RasterStack(NCEP{SurfaceFlux, 1}; ...) # NCEP radiation/precip sub-stack 
+#                                           (year = 2010), reanalysis = 1
 #
 # In R you would call a different function or package for each of these,
 # with different argument conventions, file formats, and projection handling.
@@ -539,7 +540,7 @@ model = MicroMapModel(;
         snow_model = SnowModel(),    # enable snowpack
     ),
     dem_source = SRTM,
-    weather_source = NCEP{SurfaceGauss},
+    weather_source = NCEPHourly,
     surface_albedo_source = 0.15,
     roughness_height_source = 0.004u"m",
 )
